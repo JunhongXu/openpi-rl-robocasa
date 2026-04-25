@@ -431,9 +431,24 @@ class LeRobotRobocasaDataConfig(DataConfigFactory):
 
         base = self.create_base_config(assets_dirs)
 
-        # Fallback: if norm_stats not found via assets/repo meta, combine from all data_dirs
+        # Fallback: if norm_stats not found via assets/repo meta, combine from all data_dirs.
+        # Skip the fallback when the data dirs don't exist on disk (e.g. inference-only
+        # environments where the source LeRobot data isn't available); norm_stats will then
+        # be loaded by create_trained_policy from the checkpoint's assets directory.
+        def _data_dirs_present(data_dirs) -> bool:
+            for entry in data_dirs:
+                p = entry["path"] if isinstance(entry, dict) else entry
+                if not pathlib.Path(p).exists():
+                    return False
+            return True
+
         fallback_norm_stats = None
-        if base.norm_stats is None and self.data_dirs and len(self.data_dirs) > 0:
+        if (
+            base.norm_stats is None
+            and self.data_dirs
+            and len(self.data_dirs) > 0
+            and _data_dirs_present(self.data_dirs)
+        ):
             if len(self.data_dirs) == 1:
                 d = self.data_dirs[0]
                 norm_stats = _groot_openpi_dataset._load_norm_stats_from_groot_dataset(d)
@@ -600,7 +615,11 @@ _CONFIGS = [
         data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(
-                inputs=[droid_policy.DroidInputs(action_dim=model.action_dim, model_type=ModelType.PI0_FAST)],
+                inputs=[
+                    droid_policy.DroidInputs(
+                        action_dim=model.action_dim, model_type=ModelType.PI0_FAST
+                    )
+                ],
                 outputs=[droid_policy.DroidOutputs()],
             ),
             base_config=DataConfig(
@@ -637,7 +656,9 @@ _CONFIGS = [
         ),
         # Here you define which pre-trained checkpoint you want to load to initialize the model.
         # This should match the model config you chose above -- i.e. in this case we use the pi0 base model.
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
         # Check the base TrainConfig class for a full list of available hyperparameters.
         num_train_steps=30_000,
@@ -645,12 +666,16 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
-        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        model=pi0.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ),
         data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=30_000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
@@ -674,13 +699,17 @@ _CONFIGS = [
         # max_token_len). A good rule of thumb is to use approx 180 for single-arm robots, and approx 250 for
         # two-arm robots. Generally, err on the lower side here first, and potentially increase the value if
         # you see many warnings being thrown during training.
-        model=pi0_fast.Pi0FASTConfig(action_dim=7, action_horizon=10, max_token_len=180),
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=7, action_horizon=10, max_token_len=180
+        ),
         data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
         ),
         # Note that we load the pi0-FAST base model checkpoint here.
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
     ),
     TrainConfig(
@@ -688,18 +717,26 @@ _CONFIGS = [
         # Here is an example of loading a pi0-FAST model for LoRA finetuning.
         # For setting action_dim, action_horizon, and max_token_len, see the comments above.
         model=pi0_fast.Pi0FASTConfig(
-            action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
+            action_dim=7,
+            action_horizon=10,
+            max_token_len=180,
+            paligemma_variant="gemma_2b_lora",
         ),
         data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
         # Again, make sure to match the model config above when extracting the freeze filter
         # that specifies which parameters should be frozen during LoRA finetuning.
         freeze_filter=pi0_fast.Pi0FASTConfig(
-            action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
+            action_dim=7,
+            action_horizon=10,
+            max_token_len=180,
+            paligemma_variant="gemma_2b_lora",
         ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
@@ -735,7 +772,9 @@ _CONFIGS = [
                 ]
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
     #
@@ -754,7 +793,9 @@ _CONFIGS = [
             rlds_data_dir="<path_to_droid_rlds_dataset>",
             action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=1_000,
             peak_lr=5e-5,
@@ -779,7 +820,9 @@ _CONFIGS = [
             default_prompt="Transfer cube",
             use_delta_joint_actions=False,
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
     #
@@ -801,7 +844,9 @@ _CONFIGS = [
         data=FakeDataConfig(),
         batch_size=2,
         model=pi0.Pi0Config(paligemma_variant="dummy", action_expert_variant="dummy"),
-        weight_loader=weight_loaders.CheckpointWeightLoader("./checkpoints/debug/debug/9/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "./checkpoints/debug/debug/9/params"
+        ),
         overwrite=True,
         exp_name="debug",
         num_train_steps=10,
@@ -818,7 +863,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target50"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=500000,
         save_interval=5000,
         keep_period=10000,
@@ -833,7 +880,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_atomic_seen"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("INSERT_CKPTPOINT_HERE"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/media/Data/models/pi0/pi0_robocasa_pretrain_human300/multitask_learning/75000"
+        ),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=5000,
@@ -848,7 +897,7 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_composite_seen"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("INSERT_CKPTPOINT_HERE"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("INSERT_CKPTPOINT_HERE"),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=5000,
@@ -863,7 +912,7 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_composite_unseen"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("INSERT_CKPTPOINT_HERE"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("INSERT_CKPTPOINT_HERE"),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=5000,
@@ -878,7 +927,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_atomic_seen"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=10000,
@@ -893,7 +944,7 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_atomic_seen"],
         ),
-	    weight_loader=weight_loaders.NoOpWeightLoader(),
+        weight_loader=weight_loaders.NoOpWeightLoader(),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=10000,
@@ -908,7 +959,7 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_atomic_seen"],
         ),
-	    weight_loader=weight_loaders.PaliGemmaWeightLoader(),
+        weight_loader=weight_loaders.PaliGemmaWeightLoader(),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=10000,
@@ -923,7 +974,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_composite_seen"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=10000,
@@ -938,7 +991,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["target_composite_unseen"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=100000,
         save_interval=5000,
         keep_period=10000,
@@ -953,7 +1008,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["pretrain_human300_mg60"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=1_000,
             peak_lr=2.5e-5,
@@ -974,7 +1031,9 @@ _CONFIGS = [
         data=LeRobotRobocasaDataConfig(
             data_dirs=DATASET_SOUP_REGISTRY["pretrain_human300"],
         ),
-	    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi0_base/params"
+        ),
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=1_000,
             peak_lr=2.5e-5,

@@ -31,7 +31,10 @@ class Policy(BasePolicy):
         sample_kwargs: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ):
-        self._sample_actions = nnx_utils.module_jit(model.sample_actions)
+        logging.info("Jitting the policy functions")
+        self._sample_actions = nnx_utils.module_jit(model.sample_actions, static_argnames=("stochastic",))
+        self._compute_action_logprob = nnx_utils.module_jit(model.compute_action_logprob)
+        
         self._input_transform = _transforms.compose(transforms)
         self._output_transform = _transforms.compose(output_transforms)
         self._rng = rng or jax.random.key(0)
@@ -39,18 +42,22 @@ class Policy(BasePolicy):
         self._metadata = metadata or {}
 
     @override
-    def infer(self, obs: dict) -> dict:  # type: ignore[misc]
+    def infer(self, obs: dict, stochastic: bool = False) -> dict:  # type: ignore[misc]
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
         inputs = self._input_transform(inputs)
         # Make a batch and convert to jax.Array.
         inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
+        observation = _model.Observation.from_dict(inputs)
 
         start_time = time.monotonic()
         self._rng, sample_rng = jax.random.split(self._rng)
+        policy_outputs = self._sample_actions(
+            sample_rng, observation, stochastic=stochastic, **self._sample_kwargs
+        )
         outputs = {
             "state": inputs["state"],
-            "actions": self._sample_actions(sample_rng, _model.Observation.from_dict(inputs), **self._sample_kwargs),
+            "actions": policy_outputs['x_0'] 
         }
         # Unbatch and convert to np.ndarray.        # Unbatch and convert to np.ndarray.
         outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)
@@ -60,6 +67,8 @@ class Policy(BasePolicy):
         outputs["policy_timing"] = {
             "infer_ms": model_time * 1000,
         }
+        outputs['trajectory'] = policy_outputs['trajectory']
+        outputs["observation"] = observation
         return outputs
 
     @property

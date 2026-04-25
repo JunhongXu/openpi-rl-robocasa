@@ -269,6 +269,15 @@ class BaseModel(nnx.Module, abc.ABC):
     @abc.abstractmethod
     def sample_actions(self, rng: at.KeyArrayLike, observation: Observation) -> Actions: ...
 
+    @abc.abstractmethod
+    def compute_action_logprob(
+        self,
+        observation: Observation,
+        x_t: jnp.ndarray,
+        vt_sampled: jnp.ndarray,
+        times: jnp.ndarray,
+    ) -> dict: ...
+
 
 def restore_params(
     params_path: pathlib.Path | str,
