@@ -32,6 +32,12 @@ class Policy(BasePolicy):
         metadata: dict[str, Any] | None = None,
     ):
         logging.info("Jitting the policy functions")
+        # Keep a reference to the underlying model so RL trainers can run their own
+        # update steps and still reuse the policy's input/output transforms. Note
+        # that the jit wrappers below freeze the model's state at construction time,
+        # so they will NOT reflect post-update params — RL code should call the
+        # model directly via nnx.jit instead of going through `infer()`.
+        self.model = model
         self._sample_actions = nnx_utils.module_jit(model.sample_actions, static_argnames=("stochastic",))
         self._compute_action_logprob = nnx_utils.module_jit(model.compute_action_logprob)
         
