@@ -1,5 +1,13 @@
-# openpi
+# Task Curriculum for RL Finetuning Pi0 Policy in Robocasa 
 This is the openpi fork repo for running RoboCasa benchmark experiments. This fork is based on the original [openpi code](https://github.com/Physical-Intelligence/openpi) from the Physical Intelligence team.
+
+## Installation 
+1. Download the Pi0 finetuned model from HuggingFace:
+```bash
+``` 
+
+2. Install Robocasa: https://github.com/robocasa/robocasa
+
 
 ## Recommended system specs
 For training we recommend a GPU with at least 80 Gb of memory (H100, H200, etc).
