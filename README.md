@@ -1,13 +1,20 @@
 # Task Curriculum for RL Finetuning Pi0 Policy in Robocasa 
 This is the openpi fork repo for running RoboCasa benchmark experiments. This fork is based on the original [openpi code](https://github.com/Physical-Intelligence/openpi) from the Physical Intelligence team.
 
-## Installation 
-1. Download the Pi0 finetuned model from HuggingFace:
+## Installation
+1. Initialize uv environment:  
+    - Install uv: https://docs.astral.sh/uv/getting-started/installation/
+    - Then, do `uv sync`
+
+2. Download the Pi0 finetuned model from HuggingFace:
 ```bash
+huggingface-cli download robocasa/robocasa365_checkpoints \
+  --include "pi0/pi0_robocasa_pretrain_human300/multitask_learning/75000/*" \
+  --local-dir YOUR_MODEL_PATH \
+  --repo-type model
 ``` 
 
-2. Install Robocasa: https://github.com/robocasa/robocasa
-
+3. Install Robocasa: https://github.com/robocasa/robocasa
 
 ## Recommended system specs
 For training we recommend a GPU with at least 80 Gb of memory (H100, H200, etc).

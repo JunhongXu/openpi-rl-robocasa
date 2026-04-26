@@ -33,7 +33,7 @@ from openpi.rl.replay_buffer import ReplayBuffer
 from openpi.shared import download
 from openpi.training import config as _config
 
-from robocasa.utils.env_utils import convert_action
+from robocasa.utils.env_utils import convert_action  # pyright: ignore[reportMissingImports]
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -146,7 +146,8 @@ def rollout_one_episode(env, model, input_transform, output_transform, buffer,
     env_obs, _ = env.reset()
     task_lang = env_obs["annotation.human.task_description"]
 
-    replay_images = [] if save_video_path is not None else None
+    replay_images: list[np.ndarray] = []
+    record_video = save_video_path is not None
     chunks_used = 0
     success = False
 
@@ -183,7 +184,7 @@ def rollout_one_episode(env, model, input_transform, output_transform, buffer,
         for step_idx in range(min(cfg.replan_steps, len(actions_for_env))):
             action = convert_action(actions_for_env[step_idx])
             env_obs, _, done, truncated, info = env.step(action)
-            if save_video_path is not None:
+            if record_video:
                 replay_images.append(np.ascontiguousarray(env.render()))
             if info.get("success", False):
                 success = True
@@ -219,7 +220,7 @@ def rollout_one_episode(env, model, input_transform, output_transform, buffer,
 
     if save_video_path is not None and replay_images:
         save_video_path.parent.mkdir(parents=True, exist_ok=True)
-        imageio.mimwrite(save_video_path, replay_images, fps=20)
+        imageio.mimwrite(str(save_video_path), replay_images, fps=20)
 
     return {"length_chunks": chunks_used, "success": success, "rng": rng}
 
