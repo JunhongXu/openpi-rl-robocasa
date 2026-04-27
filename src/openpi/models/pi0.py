@@ -411,7 +411,7 @@ class Pi0(_model.BaseModel):
                 "x_t": x_t,
                 "vt_mean": vt_mean,
                 "vt_sampled": vt_sampled,
-                "logpdf": action_logprob,
+                "logprob": action_logprob,
                 "entropy": action_entropy,
                 "times": time,
             }

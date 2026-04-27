@@ -110,16 +110,44 @@ def rollout_one_episode(
 
     action_plan = collections.deque()
 
+    buffer = {
+        "observation": [],
+        "action": [],
+        "reward": [],
+        "done": [],
+        "truncated": [],
+        "success": [],
+        "logprob": [],
+        "entropy": [],
+        "vt_mean": [],
+        "vt_sampled": [],
+        "x_t": []
+    }
+    # profile the time taken for each step
+    import time
     for _ in range(max_num_steps):
         raw = env_obs_to_inputs(env_obs, task_lang)
-        # observation = transform_obs(raw, input_transform)
         if not action_plan:
-            # Computing the new action chunk 
+            # Computing the new action chunk
             policy_output = policy.infer(raw, stochastic=True)
-            obervation = policy_output["observation"]
+            observation = policy_output["observation"]
             flow_traj = policy_output["trajectory"]
             action_chunk = policy_output["actions"]
             action_plan.extend(action_chunk[: replan_steps])
+            # We only extract the information needed for policy update at each replanning step.
+            buffer["observation"].append(observation)
+            buffer["action"].append(action_chunk)
+            buffer["reward"].append(0.0)
+            buffer["done"].append(False)
+            buffer["truncated"].append(False)
+            buffer["success"].append(False)
+            # Policy information
+            buffer["logprob"].append(flow_traj["logprob"])
+            buffer["entropy"].append(flow_traj["entropy"])
+            buffer["vt_mean"].append(flow_traj["vt_mean"])
+            buffer["vt_sampled"].append(flow_traj["vt_sampled"])
+            buffer["x_t"].append(flow_traj["x_t"])
+
         action = action_plan.popleft()
         action = convert_action(action)
         env_obs, _, done, truncated, info = env.step(action)
@@ -138,7 +166,21 @@ def rollout_one_episode(
         save_video_path.parent.mkdir(parents=True, exist_ok=True)
         imageio.mimwrite(str(save_video_path), [np.asarray(x) for x in replay_images], fps=20)
 
-    return {"success": success}
+    return {"success": success, "buffer": buffer}
+
+
+def rollout_episodes(
+    env, policy, buffer, horizon, replan_steps, num_episodes, task_name, save_video_path
+):
+    for i in range(num_episodes):
+        result = rollout_one_episode(
+            env,
+            policy,
+            horizon,
+            replan_steps,
+            save_video_path=pathlib.Path(f"{save_video_path}/{task_name}/episode_{i}.mp4"),
+        )
+        buffer.add(result["buffer"])
 
 
 if __name__ == "__main__":
@@ -151,10 +193,17 @@ if __name__ == "__main__":
     task_horizon = get_task_horizon("OpenCabinet")
     # set dataset path and horizon
     horizon = int(task_horizon * 1.5) # the policy moves slow so give the policy extra time
-    rollout_one_episode(
-        env,
-        policy,
-        horizon,
-        5,
-        save_video_path=pathlib.Path("./rollouts/open_cabinet.mp4"),
-    )
+    import time
+    start_time = time.time()
+    replay_buffer = ReplayBuffer(capacity=10000, num_envs=1, sample_transition=buffer)
+    for i in range(10):
+        result = rollout_one_episode(
+            env,
+            policy,
+            horizon,
+            5,
+            save_video_path=pathlib.Path(f"./rollouts/open_cabinet_{i}.mp4"),
+        )
+        print(f"Rollout {i} success {result['success']}")
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time} seconds")
