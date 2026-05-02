@@ -1,5 +1,5 @@
 # Task Curriculum for RL Finetuning Pi0 Policy in Robocasa 
-This is the openpi fork repo for running RoboCasa benchmark experiments. This fork is based on the original [openpi code](https://github.com/Physical-Intelligence/openpi) from the Physical Intelligence team.
+This is the openpi fork repo for running RoboCasa benchmark experiments. This fork is based on the original [openpi code](https://github.com/Physical-Intelligence/openpi) from the Physical Intelligence team and the Robocasa OpenPi fine-tuning.
 
 ## Installation
 1. Initialize uv environment:  
