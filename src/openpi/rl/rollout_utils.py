@@ -73,8 +73,33 @@ def env_obs_to_inputs(env_obs, task_lang):
         "prompt": task_lang,
     }
 
+def obs_to_dict(obs: _model.Observation):
+    """Converts the observation to a dictionary.
+    """
+    obs_dict = obs.to_dict()
+    # Flat the nested observation dictionary into a flat dictionary
+    base_0_rgb = obs_dict["image"]["base_0_rgb"]
+    left_wrist_0_rgb = obs_dict["image"]["left_wrist_0_rgb"]
+    right_wrist_0_rgb = obs_dict["image"]["right_wrist_0_rgb"]
+    base_0_rgb_mask = obs_dict["image_mask"]["base_0_rgb"]
+    left_wrist_0_rgb_mask = obs_dict["image_mask"]["left_wrist_0_rgb"]
+    right_wrist_0_rgb_mask = obs_dict["image_mask"]["right_wrist_0_rgb"]
 
-def transform_obs(raw_obs, input_transform):
+    return {
+        "image/base_0_rgb": base_0_rgb,
+        "image/left_wrist_0_rgb": left_wrist_0_rgb,
+        "image/right_wrist_0_rgb": right_wrist_0_rgb,
+        "image_mask/base_0_rgb": base_0_rgb_mask,
+        "image_mask/left_wrist_0_rgb": left_wrist_0_rgb_mask,
+        "image_mask/right_wrist_0_rgb": right_wrist_0_rgb_mask,
+        "state": obs_dict["state"],
+        "tokenized_prompt": obs_dict["tokenized_prompt"],
+        "tokenized_prompt_mask": obs_dict["tokenized_prompt_mask"],
+        "token_ar_mask": obs_dict["token_ar_mask"],
+        "token_loss_mask": obs_dict["token_loss_mask"],
+    }
+
+def dict_to_obs(raw_obs, input_transform):
     """Apply the policy's input pipeline; return Observation pytree with batch=1."""
     inputs = jax.tree.map(lambda x: x, raw_obs)
     inputs = input_transform(inputs)
@@ -124,7 +149,6 @@ def rollout_one_episode(
         "x_t": []
     }
     # profile the time taken for each step
-    import time
     for _ in range(max_num_steps):
         raw = env_obs_to_inputs(env_obs, task_lang)
         if not action_plan:
@@ -135,7 +159,8 @@ def rollout_one_episode(
             action_chunk = policy_output["actions"]
             action_plan.extend(action_chunk[: replan_steps])
             # We only extract the information needed for policy update at each replanning step.
-            buffer["observation"].append(observation)
+            obs_dict = obs_to_dict(observation)
+            buffer.update(obs_dict)
             buffer["action"].append(action_chunk)
             buffer["reward"].append(0.0)
             buffer["done"].append(False)
@@ -195,7 +220,30 @@ if __name__ == "__main__":
     horizon = int(task_horizon * 1.5) # the policy moves slow so give the policy extra time
     import time
     start_time = time.time()
-    replay_buffer = ReplayBuffer(capacity=10000, num_envs=1, sample_transition=buffer)
+    sample_transition = {
+        "image/base_0_rgb": [],
+        "image/left_wrist_0_rgb": [],
+        "image/right_wrist_0_rgb": [],
+        "image_mask/base_0_rgb": [],
+        "image_mask/left_wrist_0_rgb": [],
+        "image_mask/right_wrist_0_rgb": [],
+        "state": [],
+        "tokenized_prompt": [],
+        "tokenized_prompt_mask": [],
+        "token_ar_mask": [],
+        "token_loss_mask": [],
+        "action": [],
+        "reward": [],
+        "done": [],
+        "truncated": [],
+        "success": [],
+        "logprob": [],
+        "entropy": [],
+        "vt_mean": [],
+        "vt_sampled": [],
+        "x_t": []
+    }
+    replay_buffer = ReplayBuffer(capacity=10000, num_envs=1, sample_transition=sample_transition)
     for i in range(10):
         result = rollout_one_episode(
             env,
@@ -204,6 +252,7 @@ if __name__ == "__main__":
             5,
             save_video_path=pathlib.Path(f"./rollouts/open_cabinet_{i}.mp4"),
         )
+        # replay_buffer.add(result["buffer"])
         print(f"Rollout {i} success {result['success']}")
     end_time = time.time()
     print(f"Time taken: {end_time - start_time} seconds")

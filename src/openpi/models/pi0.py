@@ -84,7 +84,7 @@ class Pi0Config(_model.BaseModelConfig):
     max_token_len: int = 48
 
     # Noise level for the action noise.
-    action_noise_level: float = 1.0 
+    action_noise_level: float = 0.5 
 
     @property
     @override
@@ -401,7 +401,7 @@ class Pi0(_model.BaseModel):
                     jax.lax.stop_gradient(vt_sampled), vt_mean, action_std 
                 )
                 action_logprob = jnp.sum(action_logprob, axis=(-2, -1))
-                action_entropy = normal_entropy(action_std)
+                action_entropy = normal_entropy(action_std).reshape(batch_size)
             else:
                 vt_sampled = vt_mean
                 action_logprob = jnp.zeros((batch_size, ))
